@@ -17,8 +17,8 @@ python3 gerasenha.py
 
 __title__ = 'Gerador de Senhas'
 __author__ = 'Odmar Miranda'
-__version__ = '2.0.0'
-__date__ = '2020-09-05'
+__version__ = '2.1.1'
+__date__ = '2020-09-09'
 __description__ = 'Gerador parametrizável de senhas.'
 __long_description__ = '''\n
 Este programa gera senhas pseudo-aleatórias de tamanho variável de
@@ -27,20 +27,22 @@ o módulo 'pwgen'.
 \n'''
 __license__ = 'GNU GPLv3 http://www.gnu.org/licenses'
 __copyright__ = '\u00A9 2014, 2020 Odmar Miranda'
-__release__ = '2020-09-07'
+__release__ = '2020-09-09'
 
-# This program is free software: you can redistribute it and/or modify
+# This file is part of GeraSenha.
+#
+# GeraSenha is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # any later version.
 #
-# This program is distributed in the hope that it will be useful,
+# GeraSenha is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with GeraSenha.  If not, see <http://www.gnu.org/licenses/>.
 
 # Revisions
 # Version-  ---Date---  --------------------Comments--------------------
@@ -123,6 +125,14 @@ __release__ = '2020-09-07'
 #                       - 'basic_style.txt' file renamed to
 #                         'option_db.txt'.
 #                       - Some widgets was renamed.
+# 2.1.0     2020-09-08  - Removed support for external style file to
+#                         configure tkinter widgets.
+#                       - Password robustness indicated by progress bar
+#                         color besides it's length.
+# 2.1.1     2020-09-09  - Error: Can't copy password to clipboard.
+#                         Cause: Password displayed as label.
+#                         Solution: Use an entry box to password
+#                                   display.
 
 # imports --------------------------------------------------------------------
 import tkinter as tk
@@ -134,12 +144,8 @@ import pwgen
 
 # constants ------------------------------------------------------------------
 ABOUT = '''
-Este programa é um software livre: você pode
-redistribuí-lo ou modificá-lo dentro dos termos
-da Licença Pública Geral GNU como publicada
-pela Fundação do Software Livre (FSF), tanto
-na versão 3 da Licença quanto em qualquer
-versão posterior.
+Este programa é um software livre.
+Você pode redistribuí-lo ou modificá-lo dentro dos termos da Licença Pública Geral GNU como publicada pela Fundação do Software Livre (FSF), tanto na versão 3 da Licença quanto em qualquer versão posterior.
 '''
 
 # classes --------------------------------------------------------------------
@@ -159,14 +165,27 @@ class Application():
     def build_interface(self):
         '''Build and display application interface.'''
         
-        # Read default style for tkinter widgets from external file.
-        self.root.option_readfile('option_db.txt')
         # Get default style for ttk widgets.
         self.style = ttk.Style()
         # Configure custom style for ttk widgets.
         self.style.configure('TLabel', anchor='e')
-        self.style.configure('PW.TLabel', relief='sunken', anchor='w')
+        self.style.configure('PW.TEntry', relief='sunken', anchor='w')
         self.style.configure('Tool.TButton', relief='flat')
+        self.style.configure('Useless.Horizontal.TProgressbar',
+                             background='#FF0000'
+                            )
+        self.style.configure('Weak.Horizontal.TProgressbar',
+                             background='#FF7F00'
+                            )
+        self.style.configure('Acceptable.Horizontal.TProgressbar',
+                             background='#007F00'
+                            )
+        self.style.configure('Good.Horizontal.TProgressbar',
+                             background='#007FFF'
+                            )
+        self.style.configure('Great.Horizontal.TProgressbar',
+                             background='#0000FF'
+                            )
 
         # Loads images.
         self.exit_img = tk.PhotoImage(file='assets/exit.png')
@@ -284,9 +303,9 @@ class Application():
                                          )
         self.generate_button.grid(row=1, column=4, sticky='we', padx=5, pady=5)
         # GUI password display.
-        self.pw_display = ttk.Label(self.main_frame,
-                                    style='PW.TLabel',
-                                    padding=5
+        self.pw_display = ttk.Entry(self.main_frame,
+                                    style='PW.TEntry',
+                                    state='readonly'
                                    )
         self.pw_display.grid(row=2,
                              column=1,
@@ -318,7 +337,10 @@ class Application():
             except (TypeError, ValueError):
                 pass
             # Update GUI
-            self.pw_display.configure(text=password)
+            self.pw_display.configure(state='normal')
+            self.pw_display.delete(0, 'end')
+            self.pw_display.insert(0, password)
+            self.pw_display.configure(state='readonly')
             self.ShowEntropy(entropy)
         
     def exit(self, event=None):
@@ -328,12 +350,16 @@ class Application():
     def show_info(self, event=None):
         '''Show application info.'''
         
-        title = '{0} - Sobre'.format(__title__)
-        msg = '{0}\n\nVersão: {1} - Liberada em: {2}\n\n{3}\n{4}'
-        message = msg.format(__description__, __version__, __release__,
-                             __copyright__, ABOUT
-                             )
-        tk.messagebox.showinfo(title, message)
+        title = f'{__title__} - Sobre'
+        msg = f'''{__description__}
+
+Versão: {__version__}
+Liberada em: {__release__}
+
+{__copyright__}
+'''
+        #detail = ABOUT
+        tk.messagebox.showinfo(title, msg, detail=ABOUT)
 
     def show_help(self, event=None):
         '''Show application help.'''
@@ -343,7 +369,7 @@ class Application():
         help.transient(self.root)
         help.title('{0} - Ajuda'.format(__title__))
         # Insert widgets
-        text = tk.Text(help, height=16, width=64, padx=5, pady=5)
+        text = tk.Text(help, height=20, width=64, padx=5, pady=5, wrap='word')
         text.pack()
         close_button = ttk.Button(help, text='Fechar', command=help.destroy)
         close_button.pack()
@@ -368,16 +394,25 @@ class Application():
         '''
         
         if entropy < 28:
-            self.robustness_bar.configure(value=1.0)
+            self.robustness_bar.configure(value=1.0,
+                                          style='Useless.Horizontal.TProgressbar'
+                                         )
         elif entropy >= 28 and entropy < 36:
-            self.robustness_bar.configure(value=2.0)
+            self.robustness_bar.configure(value=2.0,
+                                          style='Weak.Horizontal.TProgressbar'
+            )
         elif entropy >= 36 and entropy < 60:
-            self.robustness_bar.configure(value=3.0)
+            self.robustness_bar.configure(value=3.0,
+                                          style='Acceptable.Horizontal.TProgressbar'
+            )
         elif entropy >= 60 and entropy < 128:
-            self.robustness_bar.configure(value=4.0)
+            self.robustness_bar.configure(value=4.0,
+                                          style='Good.Horizontal.TProgressbar'
+            )
         else:
-            self.robustness_bar.configure(value=5.0)
-
+            self.robustness_bar.configure(value=5.0,
+                                          style='Great.Horizontal.TProgressbar'
+            )
         
     def generate_first(self):
         '''Generate first password at start-up using default parameters.'''
